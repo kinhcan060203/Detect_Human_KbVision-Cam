@@ -1,45 +1,61 @@
 from my_utils import check_image_focus
-from my_utils import draw_predict, draw_boudary, check_alarm, send_telegram, find_center_points
+from my_utils import draw_predict, draw_boudary, check_alarm, send_telegram, find_center_points, PolygonDrawer
 import json
 from shapely.geometry import Point, Polygon
 import torch
 import cv2
 import numpy as np
-
+import time
 from yolov5.models.common import DetectMultiBackend
 from yolov5.utils.general import non_max_suppression
-from var_env import rtsp
 
+# rtsp://{user}:{password}@{kb-vision-id}:554
 
-class mainStream():
+conf_thres = 0.4
+iou_thres = 0.3
+max_det = 10
+img_size = (512, 512)
 
-    def __init__(self, model, streamName, focus=None, image_size=None):
-        self.model = model
+class Model(DetectMultiBackend):
+
+    def __init__(self, streamName,rtsp,delay_thres=5,alarm_thres=15):
+        super().__init__(weights="yolov5s.pt")
         self.streamName = streamName
+        self.delay_thres = delay_thres
+        self.alarm_thres = alarm_thres
+        self.rtsp = rtsp
+        
+        self.is_live=False
+    def warm_up(self, channel ,focus=None, image_size=None):
         self.focus = focus
         self.image_size = image_size
 
-        self.delay_thres = 5
-        self.alarm_thres = 15
-
-    def initiate(self):
-        channel = cam_info["channels"][self.streamName]
-        source = rtsp + f'/cam/realmonitor?channel={channel}&subtype=0'
+        source = self.rtsp + f'/cam/realmonitor?channel={channel}&subtype=0'
         print(source)
         self.vid = cv2.VideoCapture(source)
-        self.stride, self.names, self.pt = model.stride, model.names, model.pt
-        self.coords = json.load(open(f"config\{self.streamName}_polygon.json", 'r'))[
+        self.stride, self.names, self.pt = self.stride, self.names, self.pt
+        self.coords = json.load(open(f"./config/{self.streamName}_polygon.json", 'r'))[
             'coords']
         self.poly = Polygon(self.coords)
-
-    def run(self):
-
+        
+    def stop(self):
+        self.sleep_time = 0
+        self.is_live = False
+    def performence(self):
+        self.sleep_time = 0.002
+    def balanced(self,sleep=0.1):
+        self.sleep_time = sleep
+    
+    def start(self,conf_thres,iou_thres,max_det):
+        self.is_live = True
         first = False
         last = True
         delay = 0
-        count = 0
-
+        alarm = 0
+        self.balanced()
+        
         while (True):
+            start_time= time.time()
             for _ in range(5):
                 ret, frame_org = self.vid.read()
             if not ret:
@@ -49,11 +65,11 @@ class mainStream():
             im = frame.transpose((2, 0, 1))[::-1]
             im = np.ascontiguousarray(im)
             im = torch.from_numpy(im)
-            im = im.half() if model.fp16 else im.float()
+            im = im.half() if self.fp16 else im.float()
             im /= 255.0
             im = im[None]
 
-            pred = model(im)
+            pred = self(im)
             pred = non_max_suppression(pred, conf_thres=conf_thres, classes=[
                 0], iou_thres=iou_thres, max_det=max_det)[0]
 
@@ -74,8 +90,8 @@ class mainStream():
 
                 else:
                     delay = 0
-                count += 1
-                if count % self.alarm_thres == 0:
+                alarm += 1
+                if alarm % self.alarm_thres == 0:
                     send_telegram(f"Có {is_alarm} người")
 
             else:
@@ -84,35 +100,21 @@ class mainStream():
 
             frame = draw_predict(frame, np.asarray(pred), center_points)
             frame = draw_boudary(frame, np.asarray(self.coords))
-
             cv2.imshow("frame", frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            cv2.waitKey(1)
+            if not self.is_live:
                 self.vid.release()
                 cv2.destroyAllWindows()
                 break
+            
+            time.sleep(self.sleep_time)
+            print("Time: ",time.time()-start_time, self.sleep_time)
+            
 
 
-cam_info = {
-    "channels": {
-        "inHouse": 1,
-        "outHouse_Left": 2,
-        "outHouse_Right": 4,
-        "topHouse": 3
-    }
-}
-
-conf_thres = 0.4
-iou_thres = 0.3
-max_det = 10
-img_size = (512, 512)
 
 
-if __name__ == '__main__':
 
-    model = DetectMultiBackend(weights="yolov5s.pt")
-    stream = mainStream(model, streamName="outHouse_Left",
-                        focus="left", image_size=img_size)
-    stream.initiate()
 
-    exit(stream.run())
+
+

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+
+        button{
+            background-color: #d6d6d6;
+            font-size: 26px;
+            width: 300px;
+            border-radius:10px ;
+            border:2px solid red;
+            height: 50px;
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <button id="/" onclick="myFunction('/')">
+        Initiate
+    </button>
+    <button id="start" onclick="myFunction('start')">
+        Start
+    </button>
+    <button id="balanced"  onclick="myFunction('balanced','/0.1')">
+        Balanced
+    </button>
+    <button id="performence"  onclick="myFunction('performence')"> 
+        performence
+    </button>
+    <button id="stop" onclick="myFunction('stop')">
+        Stop
+    </button>
+    
+</body>
+
+<script>
+    let mode = "stop"
+    let fetchData = {
+            method: 'POST',
+    }
+    function myFunction(mode_param, param='') {
+        document.getElementById(mode).style.backgroundColor = "#d6d6d6";
+        let url = `http://127.0.0.1:5000/${mode_param}${param}`
+        console.log(url)
+        fetch(url,fetchData)
+            .then(function(response) {
+                console.log(response)
+            })
+            .catch(function(error) {
+                console.log(error)
+
+            });
+
+        document.getElementById(mode_param).style.backgroundColor = "#ccf";
+        mode=mode_param
+    }
+</script>
+    
+</html>
