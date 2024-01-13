@@ -41,8 +41,8 @@ class Model(DetectMultiBackend):
     def stop(self):
         self.sleep_time = 0
         self.is_live = False
-    def performence(self):
-        self.sleep_time = 0.002
+    def performance(self):
+        self.sleep_time = 0.0
     def balanced(self,sleep=0.1):
         self.sleep_time = sleep
     
@@ -60,6 +60,7 @@ class Model(DetectMultiBackend):
                 ret, frame_org = self.vid.read()
             if not ret:
                 continue
+            
             frame = check_image_focus(
                 frame_org, focus=self.focus, image_size=self.image_size)
             im = frame.transpose((2, 0, 1))[::-1]
@@ -75,7 +76,6 @@ class Model(DetectMultiBackend):
 
             center_points = find_center_points(np.asarray(pred))
             is_alarm = check_alarm(center_points, self.poly)
-
             if is_alarm > 0 or not last:
                 if last and not first:
                     first = True
@@ -97,24 +97,41 @@ class Model(DetectMultiBackend):
             else:
                 first = False
                 last = True
-
-            frame = draw_predict(frame, np.asarray(pred), center_points)
-            frame = draw_boudary(frame, np.asarray(self.coords))
-            cv2.imshow("frame", frame)
-            cv2.waitKey(1)
+            # frame = draw_predict(frame, np.asarray(pred), center_points)
+            # frame = draw_boudary(frame, np.asarray(self.coords))
+            # cv2.imshow("frame", frame)
+            # cv2.waitKey(1)
+            
             if not self.is_live:
-                self.vid.release()
-                cv2.destroyAllWindows()
+                # self.vid.release()
+                # cv2.destroyAllWindows()
                 break
             
             time.sleep(self.sleep_time)
             print("Time: ",time.time()-start_time, self.sleep_time)
             
+            
+config = {
+    "streamName": "outHouse_Left",
+    "rtsp": "rtsp://admin:Mot2345678@192.168.1.2:554",
+    "channel":2,
+    "focus":"left",
+    "image_size": (512, 512),
+    "model": {
+        "conf_thres": 0.4,
+        "iou_thres":0.3,
+        "max_det":10,
+        
+    }
+    
+}
+if __name__=='__main__':
+    
+    model = Model(streamName=config['streamName'],rtsp=config['rtsp'],delay_thres=5,alarm_thres=15)
+    model.warm_up(channel=config['channel'],focus=config['focus'], image_size=config['image_size'])
 
-
-
-
-
+    model.start(config['model']['conf_thres'],config['model']['iou_thres'],config['model']['max_det'])
+    
 
 
 
